@@ -21,6 +21,6 @@
 # Program Options
 * To start, you will have to click the 'Initialize' button, as this searches your drives for your Garry's Mod installation.
 * After this, 'Start Processing' should appear. Before you click this, though, change the thread count if you want.
-      - More threads = faster processing. More threads also mean more instability. Depending on how large your addon folder is, I would even recommend going up to 12.
-      - For most people, the default setting of 6 is plenty fine. 
+     - More threads = faster processing. More threads also mean more instability. Depending on how large your addon folder is, I would even recommend going up to 12.
+     - For most people, the default setting of 6 is plenty fine. 
 * Click 'Start Processing' and let it do its magic. Once complete, the 'Open Translated Folder' button will take you there. 
