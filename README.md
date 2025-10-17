@@ -3,10 +3,10 @@
 * It then iterates over your Gmod content folder and translates each addon to a new folder in the newly created 'Translated' folder
 * These folders are instead named with the addons workshop title instead of a meaningless addon ID for ease of understanding and searchability
 * Inside each addon folder, this program will decompile the .gma file from the original addon folder.
-       - Occasionally, these will be stored in your \steamapps\common\GarrysMod\garrysmod\cache\workshop folder.
-       - The program will yoink the gma from here if it can't find it in the addon folder
+     - Occasionally, these will be stored in your \steamapps\common\GarrysMod\garrysmod\cache\workshop folder.
+     - The program will yoink the gma from here if it can't find it in the addon folder
 * Inside each addon folder, it will also generate a URL file that, when clicked, will take you to the workshop listing for the addon
-       - This feature only works on Windows for now.
+     - This feature only works on Windows for now.
 
 # How to Install
 * On the right-hand side, find the 'Releases' tab
