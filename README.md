@@ -8,7 +8,7 @@
 * Inside each addon folder, it will also generate a URL file that, when clicked, will take you to the workshop listing for the addon
      - This feature only works on Windows for now.
 
-# How to Install
+# How to Install (Windows)
 * On the right-hand side, find the 'Releases' tab
 * Click the latest release
 * Download the source code zip
@@ -17,6 +17,15 @@
      - Windows will complain because the exe isn't signed.
      - I did not feel like shelling out money to professionally sign this since it's a hobby project
 * If you are unsure of this code's legitimacy, feel free to either inspect the two source code files (translator_gui.py + translator_logic.py) or chuck them in your choice of AI model and have it summarize them for you. 
+
+# How to Install (Linux)
+* While you can install and run GmodAddonTranslator.exe with Wine, I don't recommend it.
+* Instead, clone this repository and run "translator_gui.py" directly like so:
+    - python translator_gui.py
+* Not all Linux distributions support automatic detection of Garry's Mod's installation path.
+* If the automatic detection fails, you will have to manually enter the path to your Garry's Mod installation.
+* Below is a list of tested Linux distributions that support automatic detection:
+    - Arch Linux
 
 # Program Options
 * To start, you will have to click the 'Initialize' button, as this searches your drives for your Garry's Mod installation.

@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext, filedialog
 from threading import Thread
 import os
 import subprocess
@@ -204,8 +204,16 @@ class TranslatorGUI:
         if self.translator and self.translator.translated_path:
             try:
                 if os.path.exists(self.translator.translated_path):
-                    # Open folder in Windows Explorer
-                    os.startfile(self.translator.translated_path)
+                    # Open folder in file manager (cross-platform)
+                    import platform
+                    system = platform.system()
+
+                    if system == "Windows":
+                        os.startfile(self.translator.translated_path)
+                    elif system == "Darwin":  # macOS
+                        subprocess.run(["open", self.translator.translated_path])
+                    else:  # Linux and others
+                        subprocess.run(["xdg-open", self.translator.translated_path])
                 else:
                     messagebox.showerror("Folder Not Found", "The translated folder does not exist yet.")
             except Exception as e:
@@ -369,11 +377,222 @@ class TranslatorGUI:
             foreground="red"
         )
         self.init_button.config(state=tk.NORMAL)
-        messagebox.showerror(
+
+        # Ask if user wants to manually configure paths
+        result = messagebox.askyesno(
             "Initialization Failed",
-            "Could not find the Garry's Mod workshop folder.\n"
-            "Please ensure the game is installed."
+            "Could not find the Garry's Mod workshop folder automatically.\n\n"
+            "Would you like to manually configure the paths?",
+            icon='question'
         )
+
+        if result:
+            self.show_manual_path_dialog()
+
+    def show_manual_path_dialog(self):
+        """Show dialog for manually entering paths"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Manual Path Configuration")
+        dialog.geometry("800x325")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        # Center the dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (700 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (400 // 2)
+        dialog.geometry(f"800x325+{x}+{y}")
+
+        main_frame = ttk.Frame(dialog, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Title
+        title = ttk.Label(
+            main_frame,
+            text="Manual Path Configuration",
+            font=("Segoe UI", 14, "bold")
+        )
+        title.pack(pady=(0, 10), anchor="center")
+
+        # Instructions
+        instructions = ttk.Label(
+            main_frame,
+            text="Please provide the paths to your Garry's Mod files.\n"
+                 "Workshop path is required. gmad and cache are optional but recommended.",
+            font=("Segoe UI", 9),
+            foreground="gray",
+            justify="center"
+        )
+        instructions.pack(pady=(0, 20), anchor="center")
+
+        # Workshop path (required)
+        workshop_frame = ttk.LabelFrame(main_frame, text="Workshop Path (Required)", padding="10")
+        workshop_frame.pack(fill=tk.X, pady=(0, 10))
+
+        workshop_entry = ttk.Entry(workshop_frame, width=60, font=("Segoe UI", 9))
+        workshop_entry.pack(side=tk.LEFT, padx=(0, 5))
+
+        ttk.Button(
+            workshop_frame,
+            text="Browse...",
+            command=lambda: self.browse_directory(workshop_entry)
+        ).pack(side=tk.LEFT)
+
+        workshop_hint = ttk.Label(
+            workshop_frame,
+            text="Example: ~/.steam/steam/steamapps/workshop/content/4000",
+            font=("Segoe UI", 8),
+            foreground="gray"
+        )
+        workshop_hint.pack(anchor=tk.E, pady=(5, 0))
+
+        # gmad path (optional)
+        gmad_frame = ttk.LabelFrame(main_frame, text="gmad Executable Path (Optional)", padding="10")
+        gmad_frame.pack(fill=tk.X, pady=(0, 10))
+
+        gmad_entry = ttk.Entry(gmad_frame, width=60, font=("Segoe UI", 9))
+        gmad_entry.pack(side=tk.LEFT, padx=(0, 5))
+
+        ttk.Button(
+            gmad_frame,
+            text="Browse...",
+            command=lambda: self.browse_file(gmad_entry)
+        ).pack(side=tk.LEFT)
+
+        gmad_hint = ttk.Label(
+            gmad_frame,
+            text="Example: ~/.steam/steam/steamapps/common/GarrysMod/bin/linux64/gmad",
+            font=("Segoe UI", 8),
+            foreground="gray"
+        )
+        gmad_hint.pack(anchor=tk.E, pady=(5, 0))
+
+        # Cache path (optional)
+        cache_frame = ttk.LabelFrame(main_frame, text="Cache Path (Optional)", padding="10")
+        cache_frame.pack(fill=tk.X, pady=(0, 20))
+
+        cache_entry = ttk.Entry(cache_frame, width=60, font=("Segoe UI", 9))
+        cache_entry.pack(side=tk.LEFT, padx=(0, 5))
+
+        ttk.Button(
+            cache_frame,
+            text="Browse...",
+            command=lambda: self.browse_directory(cache_entry)
+        ).pack(side=tk.LEFT)
+
+        cache_hint = ttk.Label(
+            cache_frame,
+            text="Example: ~/.steam/steam/steamapps/common/GarrysMod/garrysmod/cache/workshop",
+            font=("Segoe UI", 8),
+            foreground="gray"
+        )
+        cache_hint.pack(anchor=tk.E, pady=(5, 0))
+
+        # Button frame
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X)
+
+        def validate_and_apply():
+            workshop = workshop_entry.get().strip()
+            gmad = gmad_entry.get().strip() or None
+            cache = cache_entry.get().strip() or None
+
+            if not workshop:
+                messagebox.showerror(
+                    "Missing Workshop Path",
+                    "Workshop path is required!",
+                    parent=dialog
+                )
+                return
+
+            # Expand ~ to home directory
+            workshop = os.path.expanduser(workshop)
+            if gmad:
+                gmad = os.path.expanduser(gmad)
+            if cache:
+                cache = os.path.expanduser(cache)
+
+            # Set paths in translator
+            success, message = self.translator.set_manual_paths(workshop, gmad, cache)
+
+            if success:
+                dialog.destroy()
+                self.on_manual_init_success()
+            else:
+                messagebox.showerror(
+                    "Validation Failed",
+                    message,
+                    parent=dialog
+                )
+
+        ttk.Button(
+            button_frame,
+            text="Apply",
+            command=validate_and_apply,
+            width=15
+        ).pack(side=tk.RIGHT, padx=(5, 0))
+
+        ttk.Button(
+            button_frame,
+            text="Cancel",
+            command=dialog.destroy,
+            width=15
+        ).pack(side=tk.RIGHT)
+
+    def browse_directory(self, entry_widget):
+        """Open directory browser and set the selected path in entry widget"""
+        initial_dir = entry_widget.get().strip()
+        if initial_dir:
+            initial_dir = os.path.expanduser(initial_dir)
+            if not os.path.exists(initial_dir):
+                initial_dir = os.path.expanduser("~")
+        else:
+            initial_dir = os.path.expanduser("~")
+
+        directory = filedialog.askdirectory(
+            title="Select Directory",
+            initialdir=initial_dir
+        )
+
+        if directory:
+            entry_widget.delete(0, tk.END)
+            entry_widget.insert(0, directory)
+
+    def browse_file(self, entry_widget):
+        """Open file browser and set the selected path in entry widget"""
+        initial_dir = entry_widget.get().strip()
+        if initial_dir:
+            initial_dir = os.path.dirname(os.path.expanduser(initial_dir))
+            if not os.path.exists(initial_dir):
+                initial_dir = os.path.expanduser("~")
+        else:
+            initial_dir = os.path.expanduser("~")
+
+        filepath = filedialog.askopenfilename(
+            title="Select File",
+            initialdir=initial_dir
+        )
+
+        if filepath:
+            entry_widget.delete(0, tk.END)
+            entry_widget.insert(0, filepath)
+
+    def on_manual_init_success(self):
+        """Called when manual path configuration succeeds"""
+        self.folder_label.config(
+            text=f"✓ Found: {self.translator.workshop_path}\n"
+                 f"Output: {self.translator.translated_path}",
+            foreground="green"
+        )
+        self.start_button.config(state=tk.NORMAL)
+        self.open_folder_button.config(state=tk.NORMAL)
+        self.delete_folder_button.config(state=tk.NORMAL)
+        self.init_button.config(text="Re-Initialize", state=tk.NORMAL)
+        self.log_message("=" * 70)
+        self.log_message("✓ Manual path configuration successful!")
+        self.log_message("Click 'Start Processing' to begin.")
+        self.log_message("=" * 70)
         
     def start_processing(self):
         """Start the addon processing in a background thread"""
