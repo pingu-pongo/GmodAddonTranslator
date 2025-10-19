@@ -17,10 +17,38 @@ class GModAddonTranslator:
         self.gmad_path = None
         self.cache_path = None
         self.print_lock = Lock()
-        
+
         # Callbacks for GUI updates
         self.progress_callback = progress_callback
         self.log_callback = log_callback
+
+        # Default path candidates for auto-detection
+        self.WORKSHOP_PATH_CANDIDATES = [
+            # Linux paths
+            os.path.expanduser("~/.steam/steam/steamapps/workshop/content/4000"),
+            os.path.expanduser("~/.local/share/Steam/steamapps/workshop/content/4000"),
+            # Windows paths (will be expanded with drive letters)
+            "Program Files (x86)/Steam/steamapps/workshop/content/4000",
+            "Steam/steamapps/workshop/content/4000",
+        ]
+
+        self.GMAD_PATH_CANDIDATES = [
+            # Linux paths
+            os.path.expanduser("~/.steam/steam/steamapps/common/GarrysMod/bin/linux64/gmad"),
+            os.path.expanduser("~/.local/share/Steam/steamapps/common/GarrysMod/bin/linux64/gmad"),
+            # Windows paths (relative, will be combined with drives)
+            "Program Files (x86)/Steam/steamapps/common/GarrysMod/bin/gmad.exe",
+            "Steam/steamapps/common/GarrysMod/bin/gmad.exe",
+        ]
+
+        self.CACHE_PATH_CANDIDATES = [
+            # Linux paths
+            os.path.expanduser("~/.steam/steam/steamapps/common/GarrysMod/garrysmod/cache/workshop"),
+            os.path.expanduser("~/.local/share/Steam/steamapps/common/GarrysMod/garrysmod/cache/workshop"),
+            # Windows paths (relative, will be combined with drives)
+            "Program Files (x86)/Steam/steamapps/common/GarrysMod/garrysmod/cache/workshop",
+            "Steam/steamapps/common/GarrysMod/garrysmod/cache/workshop",
+        ]
         
     def log(self, message):
         """Log a message (to console or GUI)"""
@@ -39,51 +67,86 @@ class GModAddonTranslator:
         with self.print_lock:
             self.log(message)
         
+    def get_windows_drives(self):
+        """Get all available Windows drive letters"""
+        return [f"{d}:\\" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
+
     def find_steam_workshop(self):
-        """Search all drives for the Steam workshop folder"""
+        """Search for the Steam workshop folder using multiple path candidates"""
         self.log("Searching for Steam workshop folder...")
-        
-        # Get all available drives
-        drives = [f"{d}:\\" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
-        
-        for drive in drives:
-            potential_path = os.path.join(drive, "Program Files (x86)", "Steam", "steamapps", "workshop", "content", "4000")
-            if os.path.exists(potential_path):
-                self.log(f"✓ Found workshop folder: {potential_path}")
-                self.workshop_path = potential_path
+
+        # First check all absolute path candidates (primarily Linux paths)
+        for candidate in self.WORKSHOP_PATH_CANDIDATES:
+            if os.path.isabs(candidate) and os.path.exists(candidate):
+                self.log(f"✓ Found workshop folder: {candidate}")
+                self.workshop_path = candidate
                 return True
-                
-        self.log("✗ Steam workshop folder not found on any drive")
+
+        # Then check Windows paths with all available drives
+        drives = self.get_windows_drives()
+        for drive in drives:
+            for candidate in self.WORKSHOP_PATH_CANDIDATES:
+                if not os.path.isabs(candidate):  # Only relative paths (Windows paths)
+                    full_path = os.path.join(drive, candidate)
+                    if os.path.exists(full_path):
+                        self.log(f"✓ Found workshop folder: {full_path}")
+                        self.workshop_path = full_path
+                        return True
+
+        self.log("✗ Steam workshop folder not found automatically")
         return False
     
     def find_gmad_exe(self):
-        """Locate gmad.exe in the Steam installation"""
-        self.log("Searching for gmad.exe...")
-        
-        if not self.workshop_path:
-            return False
-            
-        # Navigate up from workshop path to find Steam directory
-        steam_base = Path(self.workshop_path).parents[3]  # Go up to Steam folder
-        
-        # Standard location for gmad.exe
-        gmad_path = steam_base / "steamapps" / "common" / "GarrysMod" / "bin" / "gmad.exe"
-        
-        if gmad_path.exists():
-            self.log(f"✓ Found gmad.exe: {gmad_path}")
-            self.gmad_path = str(gmad_path)
-            
-            # Also find the cache folder
-            self.cache_path = steam_base / "steamapps" / "common" / "GarrysMod" / "garrysmod" / "cache" / "workshop"
-            if self.cache_path.exists():
-                self.log(f"✓ Found cache folder: {self.cache_path}")
-            else:
-                self.log(f"⚠ Cache folder not found at: {self.cache_path}")
-                self.cache_path = None
-            
-            return True
-                
-        self.log("✗ gmad.exe not found. Please ensure Garry's Mod is installed.")
+        """Locate gmad executable using multiple path candidates"""
+        self.log("Searching for gmad executable...")
+
+        # First check all absolute path candidates (primarily Linux paths)
+        for candidate in self.GMAD_PATH_CANDIDATES:
+            if os.path.isabs(candidate) and os.path.exists(candidate):
+                self.log(f"✓ Found gmad: {candidate}")
+                self.gmad_path = str(candidate)
+                self.find_cache_folder()
+                return True
+
+        # Then check Windows paths with all available drives
+        drives = self.get_windows_drives()
+        for drive in drives:
+            for candidate in self.GMAD_PATH_CANDIDATES:
+                if not os.path.isabs(candidate):  # Only relative paths (Windows paths)
+                    full_path = os.path.join(drive, candidate)
+                    if os.path.exists(full_path):
+                        self.log(f"✓ Found gmad: {full_path}")
+                        self.gmad_path = str(full_path)
+                        self.find_cache_folder()
+                        return True
+
+        self.log("⚠ gmad executable not found. Decompilation will be skipped.")
+        return False
+
+    def find_cache_folder(self):
+        """Locate the cache folder using multiple path candidates"""
+        self.log("Searching for cache folder...")
+
+        # First check all absolute path candidates (primarily Linux paths)
+        for candidate in self.CACHE_PATH_CANDIDATES:
+            if os.path.isabs(candidate) and os.path.exists(candidate):
+                self.log(f"✓ Found cache folder: {candidate}")
+                self.cache_path = Path(candidate)
+                return True
+
+        # Then check Windows paths with all available drives
+        drives = self.get_windows_drives()
+        for drive in drives:
+            for candidate in self.CACHE_PATH_CANDIDATES:
+                if not os.path.isabs(candidate):  # Only relative paths (Windows paths)
+                    full_path = os.path.join(drive, candidate)
+                    if os.path.exists(full_path):
+                        self.log(f"✓ Found cache folder: {full_path}")
+                        self.cache_path = Path(full_path)
+                        return True
+
+        self.log("⚠ Cache folder not found")
+        self.cache_path = None
         return False
     
     def get_addon_name(self, addon_id):
@@ -351,14 +414,98 @@ class GModAddonTranslator:
             bytes_size /= 1024.0
         return f"{bytes_size:.2f} PB"
     
+    def validate_workshop_path(self, path):
+        """Validate a workshop path provided by the user"""
+        if not path or not os.path.exists(path):
+            return False, "Path does not exist"
+
+        if not os.path.isdir(path):
+            return False, "Path is not a directory"
+
+        # Check if it contains numeric folders (addon IDs)
+        try:
+            items = os.listdir(path)
+            has_addon = any(item.isdigit() and os.path.isdir(os.path.join(path, item)) for item in items)
+            if not has_addon:
+                return False, "Path does not contain any addon folders (numeric directories)"
+        except Exception as e:
+            return False, f"Cannot read directory: {e}"
+
+        return True, "Valid workshop path"
+
+    def validate_gmad_path(self, path):
+        """Validate a gmad executable path provided by the user"""
+        if not path:
+            return True, "gmad is optional (will skip decompilation)"
+
+        if not os.path.exists(path):
+            return False, "Path does not exist"
+
+        if not os.path.isfile(path):
+            return False, "Path is not a file"
+
+        # Check if it's executable (on Linux) or has correct extension (on Windows)
+        if not (os.access(path, os.X_OK) or path.endswith('.exe')):
+            return False, "File is not executable"
+
+        return True, "Valid gmad executable"
+
+    def validate_cache_path(self, path):
+        """Validate a cache path provided by the user"""
+        if not path:
+            return True, "Cache is optional"
+
+        if not os.path.exists(path):
+            return False, "Path does not exist"
+
+        if not os.path.isdir(path):
+            return False, "Path is not a directory"
+
+        return True, "Valid cache path"
+
+    def set_manual_paths(self, workshop_path, gmad_path=None, cache_path=None):
+        """Set paths manually after validation"""
+        # Validate workshop path (required)
+        valid, message = self.validate_workshop_path(workshop_path)
+        if not valid:
+            return False, f"Invalid workshop path: {message}"
+
+        self.workshop_path = workshop_path
+        self.log(f"✓ Workshop path set: {workshop_path}")
+
+        # Validate and set gmad path (optional)
+        if gmad_path:
+            valid, message = self.validate_gmad_path(gmad_path)
+            if not valid:
+                return False, f"Invalid gmad path: {message}"
+            self.gmad_path = gmad_path
+            self.log(f"✓ gmad path set: {gmad_path}")
+        else:
+            self.log("⚠ No gmad path provided, decompilation will be skipped")
+
+        # Validate and set cache path (optional)
+        if cache_path:
+            valid, message = self.validate_cache_path(cache_path)
+            if not valid:
+                return False, f"Invalid cache path: {message}"
+            self.cache_path = Path(cache_path)
+            self.log(f"✓ Cache path set: {cache_path}")
+        else:
+            self.log("⚠ No cache path provided")
+
+        # Create translated folder
+        self.create_translated_folder()
+
+        return True, "All paths set successfully"
+
     def initialize(self):
         """Initialize the translator by finding all necessary paths"""
         if not self.find_steam_workshop():
             return False
-        
+
         if not self.find_gmad_exe():
-            self.log("⚠ Continuing without gmad.exe (files won't be decompiled)")
-        
+            self.log("⚠ Continuing without gmad (files won't be decompiled)")
+
         self.create_translated_folder()
         return True
     
